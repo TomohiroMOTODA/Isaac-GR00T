@@ -156,7 +156,7 @@ class AlohaSimDataConfig(BaseDataConfig):
                   "state.qvel", 
                   "state.effort"]
     action_keys = ["action.qpos"]
-    language_keys = []
+    language_keys = ["annotation.human.task_description"]
     observation_indices = [0]
     action_indices = list(range(16))
 
