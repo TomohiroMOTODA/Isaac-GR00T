@@ -258,6 +258,17 @@ class Gr00tTrainer(Trainer):
                 )
 
         if resume_from_checkpoint is not None:
+            trainer_state_path = os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
+            if not os.path.isfile(trainer_state_path):
+                logging.warning(
+                    "Checkpoint directory %s exists but %s is missing. "
+                    "Treating it as an incomplete checkpoint and starting from scratch.",
+                    resume_from_checkpoint,
+                    TRAINER_STATE_NAME,
+                )
+                resume_from_checkpoint = None
+
+        if resume_from_checkpoint is not None:
             logging.info(f"Resuming from checkpoint {resume_from_checkpoint}")
             # In case of repeating the find_executable_batch_size, set `self._train_batch_size` properly
             self.state = TrainerState.load_from_json(

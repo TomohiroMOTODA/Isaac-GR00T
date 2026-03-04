@@ -3,12 +3,14 @@ import os
 from pathlib import Path
 
 import tyro
+from torch.distributed.elastic.multiprocessing.errors import record
 
 from gr00t.configs.base_config import Config, get_default_config
 from gr00t.experiment.experiment import run
 
 
-if __name__ == "__main__":
+@record
+def main():
     # Set LOGURU_LEVEL environment variable if not already set (default: INFO)
     if "LOGURU_LEVEL" not in os.environ:
         os.environ["LOGURU_LEVEL"] = "INFO"
@@ -26,3 +28,7 @@ if __name__ == "__main__":
         # Override with command-line.
         config = tyro.cli(Config, default=config, description=__doc__)
     run(config)
+
+
+if __name__ == "__main__":
+    main()

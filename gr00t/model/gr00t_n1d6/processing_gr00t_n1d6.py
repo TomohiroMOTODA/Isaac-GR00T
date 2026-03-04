@@ -42,6 +42,7 @@ EMBODIMENT_TAG_TO_PROJECTOR_INDEX = {
     "oxe_widowx": 1,
     "oxe_droid": 16,
     "new_embodiment": 10,
+    "aloha": 10,
 }
 
 
@@ -50,7 +51,12 @@ def build_processor(model_name: str, transformers_loading_kwargs: dict) -> Proce
     eagle_path = os.path.join(
         os.path.dirname(__file__), "..", "modules", "nvidia", "Eagle-Block2A-2B-v2"
     )
-    return AutoProcessor.from_pretrained(eagle_path, **transformers_loading_kwargs)
+    processor = AutoProcessor.from_pretrained(eagle_path, **transformers_loading_kwargs)
+    # Keep the upstream processor's placeholder expansion unchanged.
+    # The current Eagle processor already produces the correct image-token count
+    # for this training path; applying an extra pixels_per_token correction here
+    # over-expands the placeholders by 4x and breaks multi-GPU finetuning.
+    return processor
 
 
 class Gr00tN1d6DataCollator:

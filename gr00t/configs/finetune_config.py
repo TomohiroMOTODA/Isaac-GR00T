@@ -67,6 +67,28 @@ class FinetuneConfig:
     If None, applying the default color jitter augmentation from the pretrained model.
     """
 
+    # --- Backbone / Model Overrides ---
+    model_name: str = "nvidia/Eagle-Block2A-2B-v2"
+    """Backbone model name used by the GR00T finetune entrypoint."""
+
+    load_bf16: bool = True
+    """If True, load the backbone in bf16."""
+
+    reproject_vision: bool = False
+    """If True, enable vision re-projection in the backbone path."""
+
+    eagle_collator: bool = True
+    """If True, use the Eagle-specific collator path."""
+
+    backbone_trainable_params_fp32: bool = False
+    """If True, cast trainable backbone parameters to fp32 after loading."""
+
+    tune_top_llm_layers: int = 0
+    """Number of top LLM layers to unfreeze in the backbone."""
+
+    use_relative_action: bool = True
+    """If True, enable relative-action processing in the model path."""
+
     # --- Training Configuration ---
     global_batch_size: int = 64
     """Total effective batch size across all GPUs and accumulation steps."""
@@ -116,3 +138,18 @@ class FinetuneConfig:
 
     num_shards_per_epoch: int = int(1e5)
     """Number of shards to use for the dataset. reduce this number if vram is limited."""
+
+    training_optim: str = "adamw_torch"
+    """Optimizer name passed to Hugging Face TrainingArguments.optim."""
+
+    training_fp16: bool = False
+    """If True, enable fp16 mixed precision."""
+
+    training_bf16: bool = True
+    """If True, enable bf16 mixed precision."""
+
+    wandb_project: str = "finetune-gr00t-n1d6"
+    """wandb project name when use_wandb=True."""
+
+    enable_profiling: bool = False
+    """If True, enable the upstream profiling callbacks."""

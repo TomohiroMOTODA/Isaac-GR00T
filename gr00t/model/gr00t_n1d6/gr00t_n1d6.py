@@ -16,6 +16,28 @@ from transformers.feature_extraction_utils import BatchFeature
 import tree
 
 
+def _resolve_module_device(module: nn.Module) -> torch.device:
+    param = next(module.parameters(), None)
+    if param is not None:
+        return param.device
+    buffer = next(module.buffers(), None)
+    if buffer is not None:
+        return buffer.device
+    if torch.cuda.is_available():
+        return torch.device("cuda", torch.cuda.current_device())
+    return torch.device("cpu")
+
+
+def _resolve_module_dtype(module: nn.Module) -> torch.dtype:
+    param = next(module.parameters(), None)
+    if param is not None:
+        return param.dtype
+    buffer = next(module.buffers(), None)
+    if buffer is not None and torch.is_floating_point(buffer):
+        return buffer.dtype
+    return torch.float32
+
+
 class Gr00tN1d6ActionHead(nn.Module):
     """Action head component for flow matching diffusion policy."""
 
@@ -141,7 +163,20 @@ class Gr00tN1d6ActionHead(nn.Module):
 
     def process_backbone_output(self, backbone_output: BatchFeature) -> BatchFeature:
         backbone_features = backbone_output["backbone_features"]
-        backbone_features = self.vlln(backbone_features)
+        if isinstance(self.vlln, nn.LayerNorm):
+            target_dtype = (
+                self.vlln.weight.dtype if self.vlln.weight is not None else backbone_features.dtype
+            )
+            target_device = (
+                self.vlln.weight.device if self.vlln.weight is not None else backbone_features.device
+            )
+            if backbone_features.dtype != target_dtype or backbone_features.device != target_device:
+                backbone_features = backbone_features.to(device=target_device, dtype=target_dtype)
+                backbone_features = self.vlln(backbone_features)
+            else:
+                backbone_features = self.vlln(backbone_features)
+        else:
+            backbone_features = self.vlln(backbone_features)
         backbone_output["backbone_features"] = backbone_features
         return backbone_output
 
@@ -217,10 +252,23 @@ class Gr00tN1d6ActionHead(nn.Module):
         # Join vision, language, state and action embedding along sequence dimension.
         sa_embs = torch.cat((state_features, action_features), dim=1)
         vl_attn_mask = backbone_output.backbone_attention_mask
+        model_param = next(self.model.parameters(), None)
+        model_device = model_param.device if model_param is not None else sa_embs.device
+        model_dtype = model_param.dtype if model_param is not None else sa_embs.dtype
+        if sa_embs.device != model_device or sa_embs.dtype != model_dtype:
+            sa_embs = sa_embs.to(device=model_device, dtype=model_dtype)
+        if vl_embeds.device != model_device or vl_embeds.dtype != model_dtype:
+            vl_embeds = vl_embeds.to(device=model_device, dtype=model_dtype)
+        if vl_attn_mask.device != model_device:
+            vl_attn_mask = vl_attn_mask.to(device=model_device)
 
         if self.config.use_alternate_vl_dit:
             image_mask = backbone_output.image_mask
             backbone_attention_mask = backbone_output.backbone_attention_mask
+            if image_mask.device != model_device:
+                image_mask = image_mask.to(device=model_device)
+            if backbone_attention_mask.device != model_device:
+                backbone_attention_mask = backbone_attention_mask.to(device=model_device)
             model_output, _ = self.model(
                 hidden_states=sa_embs,
                 encoder_hidden_states=vl_embeds,
@@ -390,11 +438,11 @@ class Gr00tN1d6ActionHead(nn.Module):
 
     @property
     def device(self):
-        return next(iter(self.parameters())).device
+        return _resolve_module_device(self)
 
     @property
     def dtype(self):
-        return next(iter(self.parameters())).dtype
+        return _resolve_module_dtype(self)
 
     def prepare_input(self, batch: dict) -> BatchFeature:
         """Prepare input batch for the action head."""
@@ -527,11 +575,11 @@ class Gr00tN1d6(PreTrainedModel):
 
     @property
     def device(self):
-        return next(iter(self.parameters())).device
+        return _resolve_module_device(self)
 
     @property
     def dtype(self):
-        return next(iter(self.parameters())).dtype
+        return _resolve_module_dtype(self)
 
 
 # Register the model with HuggingFace

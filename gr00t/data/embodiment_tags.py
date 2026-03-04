@@ -59,3 +59,9 @@ class EmbodimentTag(Enum):
     """
     Any new embodiment.
     """
+
+    ALOHA = "aloha"
+    """
+    The ALOHA bimanual manipulation embodiment.
+    """
+

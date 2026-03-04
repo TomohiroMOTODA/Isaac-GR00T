@@ -101,6 +101,12 @@ def run(config: Config):
     warn_configs(config)
 
     """Main training function."""
+    try:
+        torch.multiprocessing.set_sharing_strategy("file_system")
+        logging.info("Set torch multiprocessing sharing strategy to file_system")
+    except RuntimeError:
+        logging.warning("Could not set torch multiprocessing sharing strategy to file_system")
+
     # If using distributed training, initialize the process group
     if dist.is_initialized():
         global_rank = dist.get_rank()
@@ -175,8 +181,14 @@ def run(config: Config):
     processor = pipeline.return_processor()
     processor.save_pretrained(processor_dir)
 
-    # deepspeed config
-    if config.training.num_gpus > 1 and not config.training.use_ddp:
+    # Only enable DeepSpeed when the process is actually launched in a distributed
+    # context. For a plain single-process launch with multiple visible GPUs,
+    # HuggingFace Trainer will fall back to DataParallel. In that case, passing a
+    # DeepSpeed config can leave the model on CPU and break DataParallel device checks.
+    launched_distributed = dist.is_initialized() or (
+        "WORLD_SIZE" in os.environ and int(os.environ["WORLD_SIZE"]) > 1
+    )
+    if config.training.num_gpus > 1 and not config.training.use_ddp and launched_distributed:
         deepspeed_config = config.get_deepspeed_config()
     else:
         deepspeed_config = None
@@ -229,6 +241,9 @@ def run(config: Config):
         data_collator=data_collator,
         multiprocessing_context=config.data.multiprocessing_context,
     )
+
+    if deepspeed_config is None and training_args.device.type == "cuda":
+        model.to(training_args.device)
 
     trainer.add_callback(
         CheckpointFormatCallback(
