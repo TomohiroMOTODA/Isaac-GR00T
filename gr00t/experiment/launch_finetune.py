@@ -89,6 +89,7 @@ def main():
     config.training.weight_decay = ft_config.weight_decay
     config.training.warmup_ratio = ft_config.warmup_ratio
     config.training.wandb_project = ft_config.wandb_project
+    config.training.report_to = ft_config.report_to
     config.training.enable_profiling = ft_config.enable_profiling
 
     config.data.shard_size = ft_config.shard_size

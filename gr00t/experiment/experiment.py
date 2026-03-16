@@ -97,6 +97,33 @@ def warn_configs(config: Config):
         )
 
 
+def resolve_report_to(config: Config):
+    configured = getattr(config.training, "report_to", None)
+    if configured is None:
+        return "wandb" if config.training.use_wandb else "none"
+
+    text = str(configured).strip()
+    if not text or text.lower() in {"none", "null", "false", "off"}:
+        return "none"
+
+    reporters = [item.strip() for item in text.split(",") if item.strip()]
+    if "wandb" in reporters and not config.training.use_wandb:
+        logging.warning("report_to includes wandb but use_wandb is False. Dropping wandb from report_to.")
+        reporters = [item for item in reporters if item != "wandb"]
+
+    if not reporters:
+        return "none"
+    if len(reporters) == 1:
+        return reporters[0]
+    return reporters
+
+
+def report_to_includes(report_to, target: str) -> bool:
+    if isinstance(report_to, (list, tuple)):
+        return target in report_to
+    return report_to == target
+
+
 def run(config: Config):
     warn_configs(config)
 
@@ -126,6 +153,7 @@ def run(config: Config):
 
     # Validate config
     config.validate()
+    report_to = resolve_report_to(config)
 
     # Create output directory
     if config.training.experiment_name is None:
@@ -158,7 +186,7 @@ def run(config: Config):
     logging.info(f"Saved config to {save_cfg_dir}")
 
     # Initialize wandb if configured, but only on the main process
-    if config.training.use_wandb and global_rank == 0:
+    if config.training.use_wandb and report_to_includes(report_to, "wandb") and global_rank == 0:
         # Add git commit hash and version info to config
         config_dict = {
             **config.__dict__,
@@ -220,7 +248,7 @@ def run(config: Config):
         gradient_checkpointing=config.training.gradient_checkpointing,
         optim=config.training.optim,
         dataloader_num_workers=config.training.dataloader_num_workers,
-        report_to="wandb" if config.training.use_wandb else "none",
+        report_to=report_to,
         seed=config.data.seed,
         deepspeed=deepspeed_config,
         ddp_find_unused_parameters=False,

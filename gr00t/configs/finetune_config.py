@@ -151,5 +151,8 @@ class FinetuneConfig:
     wandb_project: str = "finetune-gr00t-n1d6"
     """wandb project name when use_wandb=True."""
 
+    report_to: str | None = None
+    """HuggingFace Trainer report backend (e.g., none, tensorboard, wandb)."""
+
     enable_profiling: bool = False
     """If True, enable the upstream profiling callbacks."""
